@@ -42,7 +42,8 @@ export default async function handler(req, res) {
     if (!response.ok) {
         const errorData = await response.text();
         console.error("Gemini API Error:", errorData);
-        return res.status(response.status).json({ error: "Failed to generate content." });
+        // We will return the actual error from Google to see what is failing
+        return res.status(response.status).json({ error: `Gemini API Error: ${errorData}` });
     }
 
     const data = await response.json();

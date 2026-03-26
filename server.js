@@ -59,7 +59,7 @@ http.createServer(async (req, res) => {
         if (!fetchRes.ok) {
            console.error("Gemini Error:", data);
            res.writeHead(fetchRes.status, { 'Content-Type': 'application/json' });
-           return res.end(JSON.stringify({ error: "Gemini API Error" }));
+           return res.end(JSON.stringify({ error: `Gemini API Error: ${JSON.stringify(data)}` }));
         }
 
         const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
