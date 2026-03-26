@@ -384,12 +384,13 @@
         // [CALL 1]: Course extraction and Weekly Plan limits token usage
         const prompt1Sys = `You are an expert in remote learning. Read the provided syllabus text.
 1. Extract the Course Name and Intended Learning Outcomes (ILOs) strictly.
-2. Based ONLY on these exact ILOs, generate a highly interactive 14-session remote learning plan. Make descriptions very concise to save space.
+2. Based ONLY on these ILOs, generate a highly interactive 14-session remote learning plan.
+CRITICAL: You MUST keep every single description extremely short (max 1 to 2 very short sentences). If you write too much, you will hit token limits and crash the system. Be concise.
 Output ONLY a JSON string. Structure:
 {
   "courseName": "...",
   "ilosExtracted": "List the parsed ILOs here exactly as found.",
-  "weeklyPlan": [ {"num": 1, "topic": "...", "activityTitle": "...", "activityDetail": "1-2 sentences", "zoomSteps": ["step1"], "tools": ["Zoom"], "miniTask": "...", "timing": "45 mins"} ]
+  "weeklyPlan": [ {"num": 1, "topic": "Brief topic", "activityTitle": "Brief title", "activityDetail": "1 short sentence maximum.", "zoomSteps": ["1 short step"], "tools": ["Zoom"], "miniTask": "1 short sentence", "timing": "45 mins"} ]
 }
 ${langObj}`;
         const prompt1User = `Syllabus Text:\n\n${state.extractedText}`;
