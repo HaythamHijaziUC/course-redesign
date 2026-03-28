@@ -381,16 +381,49 @@
       const langObj = state.lang === 'ar' ? 'Output purely in Arabic.' : 'Output purely in English.';
       
       try {
-        // [CALL 1]: Course extraction and Weekly Plan limits token usage
-        const prompt1Sys = `You are an expert in remote learning. Read the provided syllabus text.
+        const prompt1Sys = `You are an expert instructional designer and creative educator specializing in deep learning experiences, not superficial content generation. Ensure content works for grad/undergrad university students and lecturers. Read the provided syllabus text.
 1. Extract the Course Name and Intended Learning Outcomes (ILOs) strictly.
-2. Based ONLY on these ILOs, generate a highly interactive 14-session remote learning plan.
-CRITICAL: You MUST keep every single description extremely short (max 1 to 2 very short sentences). If you write too much, you will hit token limits and crash the system. Be concise.
-Output ONLY a JSON string. Structure:
+2. Based ONLY on the ILOs, identify the 3 to 4 most critical topics that require practical interaction, deep learning, and out-of-the-box ideas.
+3. For EACH of these selected topics, generate a highly detailed and interactive remote lesson plan following this strict structure:
+- Depth Over Breadth: Explore concepts deeply.
+- Step-by-step Flow: Objective, Preparation, Exact teacher instructions, Expected student actions, Timing breakdown, Assessment method.
+- Creative Activities: At least one unconventional activity (role-playing, problem-based, gamified, real-life simulations). No standard lecture+quiz.
+- Remote-First Design Constraints: Fully online, active learning only.
+- Output Compression: You MUST keep every field extremely brief (max 1-2 short sentences). Do NOT write long paragraphs or you will crash the system.
+- CRITICAL JSON RULES: NEVER use raw newlines, line breaks, or bullet points inside JSON string values. Write continuous inline text. If you need a list, use the provided array formats (like 'steps'). No unescaped quotes.
+
+Output ONLY a continuous JSON string. Structure:
 {
   "courseName": "...",
   "ilosExtracted": "List the parsed ILOs here exactly as found.",
-  "weeklyPlan": [ {"num": 1, "topic": "Brief topic", "activityTitle": "Brief title", "activityDetail": "1 short sentence maximum.", "zoomSteps": ["1 short step"], "tools": ["Zoom"], "miniTask": "1 short sentence", "timing": "45 mins"} ]
+  "weeklyPlan": [
+    {
+      "topic": "...",
+      "concept": {
+        "explanation": "...",
+        "realWorldApp": "Bring Palestinian context and International one",
+        "misconception": "..."
+      },
+      "activity": {
+        "objective": "...",
+        "preparation": "...",
+        "steps": ["...", "..."],
+        "studentActions": "...",
+        "timing": "...",
+        "assessment": "..."
+      },
+      "creativeActivity": {
+        "title": "...",
+        "objective": "...",
+        "preparation": "...",
+        "steps": ["...", "..."],
+        "studentActions": "...",
+        "timing": "...",
+        "whyDeepLearning": "...",
+        "assessment": "..."
+      }
+    }
+  ]
 }
 ${langObj}`;
         const prompt1User = `Syllabus Text:\n\n${state.extractedText}`;
@@ -402,11 +435,22 @@ ${langObj}`;
         const data1 = await res1.json();
         if (!res1.ok) throw new Error(data1.error || `HTTP ${res1.status}`);
 
-        let json1 = data1.text;
-        const fb1 = json1.indexOf('{'); const lb1 = json1.lastIndexOf('}');
-        if (fb1 !== -1 && lb1 !== -1) json1 = json1.substring(fb1, lb1 + 1);
+        // Basic sanitization: strip markdown blocks if the AI accidentally wrapped the JSON.
+        let json1 = data1.text.replace(/^```json[\r\n]*/mi, '').replace(/[\r\n]*```$/m, '').trim();
+        
+        if (!json1.startsWith('{')) {
+          const fb1 = json1.indexOf('{'); const lb1 = json1.lastIndexOf('}');
+          if (fb1 !== -1 && lb1 !== -1) json1 = json1.substring(fb1, lb1 + 1);
+        }
         if (!json1 || json1.trim() === '') throw new Error("Gemini returned an empty response (Safety Filtered).");
-        const phase1Data = JSON.parse(json1);
+        let phase1Data;
+        try {
+          phase1Data = JSON.parse(json1);
+        } catch (e) {
+          console.error("Phase 1 JSON Parse Error:", e);
+          console.error("Raw Phase 1 JSON:", json1);
+          throw new Error("Phase 1 AI output formatting error: " + e.message + "\\nCheck browser console for raw JSON output.");
+        }
 
         // [CALL 2]: Generate the Toolbox, Assessments, and Zoom Guide based on the extracted ILOs
         const prompt2Sys = `You are an expert in remote learning. Based strictly on the Course Name and ILOs provided, generate an instructor toolbox, redefined assessments to resist AI cheating, and a master zoom live script.
@@ -427,11 +471,20 @@ ${langObj}`;
         const data2 = await res2.json();
         if (!res2.ok) throw new Error(data2.error || `HTTP ${res2.status}`);
 
-        let json2 = data2.text;
-        const fb2 = json2.indexOf('{'); const lb2 = json2.lastIndexOf('}');
-        if (fb2 !== -1 && lb2 !== -1) json2 = json2.substring(fb2, lb2 + 1);
+        let json2 = data2.text.replace(/^```json/mi, '').replace(/```$/m, '').trim();
+        if (!json2.startsWith('{')) {
+          const fb2 = json2.indexOf('{'); const lb2 = json2.lastIndexOf('}');
+          if (fb2 !== -1 && lb2 !== -1) json2 = json2.substring(fb2, lb2 + 1);
+        }
         if (!json2 || json2.trim() === '') throw new Error("Gemini Phase 2 returned empty.");
-        const phase2Data = JSON.parse(json2);
+        let phase2Data;
+        try {
+          phase2Data = JSON.parse(json2);
+        } catch (e) {
+          console.error("Phase 2 JSON Parse Error:", e);
+          console.error("Raw Phase 2 JSON:", json2);
+          throw new Error("Phase 2 AI output formatting error: " + e.message + "\\nCheck browser console for raw JSON output.");
+        }
         
         // Merge the two payloads smoothly
         state.data = { ...phase1Data, ...phase2Data };
@@ -452,24 +505,56 @@ ${langObj}`;
 
       document.getElementById('statsBar').innerHTML = `
         <div class="stat-badge">📘 ${d.courseName || 'Course Extracted'}</div>
-        <div class="stat-badge">📅 ${d.weeklyPlan?.length || 0} remote sessions designed</div>
+        <div class="stat-badge">📅 ${d.weeklyPlan?.length || 0} interactive lessons designed</div>
         <div class="stat-badge">✅ ${d.newAssessments?.length || 0} assessments optimized</div>
       `;
 
       // Tab: Remote Plan
-      document.getElementById('weeklyPlanContainer').innerHTML = (d.weeklyPlan || []).map(w => `
-        <div class="card week-card">
+      document.getElementById('weeklyPlanContainer').innerHTML = (d.weeklyPlan || []).map((w, index) => `
+        <div class="card week-card" style="margin-bottom: 24px;">
           <div class="week-header">
-            <h3 style="margin:0">Session ${w.num}: ${w.topic}</h3>
-            <span class="badge purple">⏱ ${w.timing}</span>
+            <h3 style="margin:0">Session ${index + 1}: ${w.topic}</h3>
           </div>
-          <h4 style="margin-bottom:8px; display:flex; gap:8px;">💡 ${w.activityTitle}</h4>
-          <p style="margin-bottom:12px">${w.activityDetail}</p>
-          <div style="margin-bottom:12px;"><strong>Step-by-step Execution:</strong><ol style="margin: 8px 16px;">
-            ${(w.zoomSteps||[]).map(s => `<li>${s}</li>`).join('')}
-          </ol></div>
-          <div>${(w.tools||[]).map(t => `<span class="tool-chip">${t}</span>`).join('')}</div>
-          <div class="mini-task">🧩 <strong>Mini-task:</strong> ${w.miniTask}</div>
+          
+          <div style="margin-bottom: 20px;">
+            <h4 style="color: var(--teal); border-bottom: 2px solid #ccfbf1; padding-bottom: 4px; margin-bottom: 12px;">📚 Concept</h4>
+            <p style="margin-bottom: 8px;"><strong>Explanation:</strong> ${w.concept?.explanation || ''}</p>
+            <p style="margin-bottom: 8px;"><strong>Real-world App:</strong> ${w.concept?.realWorldApp || ''}</p>
+            <p style="margin-bottom: 8px;"><strong>Misconception:</strong> ${w.concept?.misconception || ''}</p>
+          </div>
+
+          <div style="margin-bottom: 20px; background: #f8fafc; padding: 16px; border-radius: 8px; border-left: 4px solid var(--primary-light);">
+            <h4 style="color: var(--primary); margin-bottom: 12px;">🎯 Standard Activity</h4>
+            <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;">
+              <span class="badge gray">⏱ ${w.activity?.timing || ''}</span>
+              <span class="badge blue">📝 ${w.activity?.assessment || ''}</span>
+            </div>
+            <p style="margin-bottom: 6px;"><strong>Objective:</strong> ${w.activity?.objective || ''}</p>
+            <p style="margin-bottom: 6px;"><strong>Preparation:</strong> ${w.activity?.preparation || ''}</p>
+            <div style="margin-top: 8px;"><strong>Steps:</strong>
+              <ol style="margin: 8px 0 8px 24px;">
+                ${(Array.isArray(w.activity?.steps) ? w.activity.steps : (w.activity?.steps ? [w.activity.steps] : [])).map(s => `<li>${s}</li>`).join('')}
+              </ol>
+            </div>
+            <p style="margin-bottom: 6px;"><strong>Student Actions:</strong> ${w.activity?.studentActions || ''}</p>
+          </div>
+
+          <div style="background: #fdf4ff; padding: 16px; border-radius: 8px; border-left: 4px solid var(--purple);">
+            <h4 style="color: var(--purple); margin-bottom: 12px;">💡 Creative Activity: ${w.creativeActivity?.title || 'Engagement'}</h4>
+            <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;">
+              <span class="badge purple">⏱ ${w.creativeActivity?.timing || ''}</span>
+              ${w.creativeActivity?.whyDeepLearning ? `<span class="badge green">🛡 Deep Learning: ${w.creativeActivity?.whyDeepLearning}</span>` : ''}
+              ${w.creativeActivity?.assessment ? `<span class="badge blue">📝 ${w.creativeActivity?.assessment}</span>` : ''}
+            </div>
+            <p style="margin-bottom: 6px;"><strong>Objective:</strong> ${w.creativeActivity?.objective || ''}</p>
+            <p style="margin-bottom: 6px;"><strong>Preparation:</strong> ${w.creativeActivity?.preparation || ''}</p>
+            <div style="margin-top: 8px;"><strong>Steps:</strong>
+              <ol style="margin: 8px 0 8px 24px;">
+                ${(Array.isArray(w.creativeActivity?.steps) ? w.creativeActivity.steps : (w.creativeActivity?.steps ? [w.creativeActivity.steps] : [])).map(s => `<li>${s}</li>`).join('')}
+              </ol>
+            </div>
+            <p style="margin-bottom: 6px;"><strong>Student Actions:</strong> ${w.creativeActivity?.studentActions || ''}</p>
+          </div>
         </div>
       `).join('');
 
