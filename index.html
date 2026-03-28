@@ -435,9 +435,14 @@ ${langObj}`;
         const data1 = await res1.json();
         if (!res1.ok) throw new Error(data1.error || `HTTP ${res1.status}`);
 
-        // Basic sanitization: strip markdown blocks if the AI accidentally wrapped the JSON.
-        let json1 = data1.text.replace(/^```json[\r\n]*/mi, '').replace(/[\r\n]*```$/m, '').trim();
+        let json1text = data1.text.replace(/^```json[\r\n]*/mi, '').replace(/[\r\n]*```$/m, '').trim();
         
+        // BULLETPROOF FIX: LLMs frequently insert raw, unescaped newlines inside JSON strings, 
+        // which completely breaks JSON.parse (Unterminated string error).
+        // Since JSON structural whitespace is optional, we replace all raw newlines/tabs with spaces.
+        // Properly escaped newlines (\\n) are left intact by this regex.
+        let json1 = json1text.replace(/[\n\r\t]+/g, ' ');
+
         if (!json1.startsWith('{')) {
           const fb1 = json1.indexOf('{'); const lb1 = json1.lastIndexOf('}');
           if (fb1 !== -1 && lb1 !== -1) json1 = json1.substring(fb1, lb1 + 1);
@@ -448,8 +453,8 @@ ${langObj}`;
           phase1Data = JSON.parse(json1);
         } catch (e) {
           console.error("Phase 1 JSON Parse Error:", e);
-          console.error("Raw Phase 1 JSON:", json1);
-          throw new Error("Phase 1 AI output formatting error: " + e.message + "\\nCheck browser console for raw JSON output.");
+          console.error("Raw Phase 1 JSON:", json1text);
+          throw new Error("Phase 1 AI output formatting error: " + e.message + " - Check browser console for raw JSON.");
         }
 
         // [CALL 2]: Generate the Toolbox, Assessments, and Zoom Guide based on the extracted ILOs
@@ -471,7 +476,9 @@ ${langObj}`;
         const data2 = await res2.json();
         if (!res2.ok) throw new Error(data2.error || `HTTP ${res2.status}`);
 
-        let json2 = data2.text.replace(/^```json/mi, '').replace(/```$/m, '').trim();
+        let json2text = data2.text.replace(/^```json[\r\n]*/mi, '').replace(/[\r\n]*```$/m, '').trim();
+        let json2 = json2text.replace(/[\n\r\t]+/g, ' ');
+
         if (!json2.startsWith('{')) {
           const fb2 = json2.indexOf('{'); const lb2 = json2.lastIndexOf('}');
           if (fb2 !== -1 && lb2 !== -1) json2 = json2.substring(fb2, lb2 + 1);
@@ -482,8 +489,8 @@ ${langObj}`;
           phase2Data = JSON.parse(json2);
         } catch (e) {
           console.error("Phase 2 JSON Parse Error:", e);
-          console.error("Raw Phase 2 JSON:", json2);
-          throw new Error("Phase 2 AI output formatting error: " + e.message + "\\nCheck browser console for raw JSON output.");
+          console.error("Raw Phase 2 JSON:", json2text);
+          throw new Error("Phase 2 AI output formatting error: " + e.message + " - Check browser console for raw JSON.");
         }
         
         // Merge the two payloads smoothly
