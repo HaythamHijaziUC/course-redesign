@@ -459,13 +459,16 @@ ${langObj}`;
 
         // [CALL 2]: Generate the Toolbox, Assessments, and Zoom Guide based on the extracted ILOs
         const prompt2Sys = `You are an expert in remote learning. Based strictly on the Course Name and ILOs provided, generate an instructor toolbox, redefined assessments to resist AI cheating, and a master zoom live script.
-Output ONLY a JSON string. Structure:
+CRITICAL: Keep ALL values extremely short (max 1 sentence each). Arrays must have max 4 items. No long explanations.
+CRITICAL JSON RULES: NEVER use raw newlines, line breaks inside string values. Write inline text only.
+Output ONLY a continuous JSON string. Structure:
 {
-  "toolbox": [ {"icon": "📝", "title": "...", "description": "1 sentence", "steps": ["s1"], "tools": ["t1"], "whyThisCourse": "Tailored reasons."} ],
-  "newAssessments": [ {"name": "...", "percentage": "10%", "description": "...", "antiAiFeature": "..."} ],
-  "sessionScript": [ {"time": "0-15", "phase": "Warmup", "action": "..."} ],
-  "freeTools": [ {"name": "...", "url": "...", "use": "..."} ]
+  "toolbox": [ {"icon": "📝", "title": "...", "description": "1 sentence.", "steps": ["s1", "s2"], "tools": ["t1"], "whyThisCourse": "1 sentence."} ],
+  "newAssessments": [ {"name": "...", "percentage": "10%", "description": "1 sentence.", "antiAiFeature": "1 sentence."} ],
+  "sessionScript": [ {"time": "0-15 min", "phase": "Warmup", "action": "1 sentence."} ],
+  "freeTools": [ {"name": "...", "url": "https://...", "use": "1 sentence."} ]
 }
+Generate max 4 toolbox items, max 4 assessments, max 6 sessionScript rows, max 6 freeTools.
 ${langObj}`;
         const prompt2User = `Course Name: ${phase1Data.courseName}\nILOs:\n${phase1Data.ilosExtracted}`;
 
